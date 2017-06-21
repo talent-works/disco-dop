@@ -1,5 +1,6 @@
 """CKY parser for Probabilistic Context-Free Grammar (PCFG)."""
 from __future__ import print_function
+import logging
 import re
 import sys
 import subprocess
@@ -419,6 +420,7 @@ cdef parse_grammarloop(sent, CFGChart_fused chart, tags,
 		uint64_t item, leftitem, rightitem, cell, blocked = 0
 		ItemNo lastidx
 		size_t nts = grammar.nonterminals
+		double beam
 	# Create matrices to track minima and maxima for binary splits.
 	n = (lensent + 1) * nts + 1
 	midfilter.minleft.resize(n, -1)
@@ -430,13 +432,18 @@ cdef parse_grammarloop(sent, CFGChart_fused chart, tags,
 		chart.beambuckets.resize(
 				compactcellidx(lensent - 1, lensent, lensent, 1) + 1,
 				INFINITY)
+
 	# assign POS tags
+	prepared_doc = grammar.emission._prepare_doc(sent) if grammar.emission else None
 	covered, msg = populatepos[CFGChart_fused](chart, sent, tags,
-			unaryagenda, None, &blocked, &midfilter, NULL)
+                       unaryagenda, None, &blocked, &midfilter, NULL,
+                       prepared_doc)
 	if not covered:
 		return chart, msg
 
 	for span in range(2, lensent + 1):
+		beam = beam_beta if span <= beam_delta else 0.0
+
 		# constituents from left to right
 		for left in range(lensent - span + 1):
 			right = left + span
@@ -446,11 +453,20 @@ cdef parse_grammarloop(sent, CFGChart_fused chart, tags,
 				cell = cellstruct(left, right)
 			lastidx = chart.items.size()
 			# apply all binary rules
+
+			prepared_span = grammar.emission._prepare_span(sent[left:right], prepared=prepared_doc) \
+							if grammar.emission else None
 			for lhs in range(1, grammar.phrasalnonterminals):
 				n = 0
 				rule = &(grammar.bylhs[lhs][n])
 				item = lhs + cell
 				prevprob = chart._subtreeprob(item)
+				if grammar._is_mte(lhs):
+					prob = grammar.emission._span_log_proba(lhs, sent[left:right], prepared=prepared_span)
+					if isfinite(prob):
+						chart.updateprob(item, prob + rule.prob, beam)
+						chart.addedge(item, right, NULL)
+
 				while rule.lhs == lhs:
 					narrowr = midfilter.minright[left * nts + rule.rhs1]
 					narrowl = midfilter.minleft[right * nts + rule.rhs2]
@@ -575,7 +591,8 @@ cdef parse_leftchildloop(sent, SparseCFGChart chart, tags,
 
 cdef populatepos(CFGChart_fused chart, sent, tags,
 		Agenda[Label, Prob]& unaryagenda, Whitelist whitelist,
-		uint64_t *blocked, MidFilter *midfilter, vector[size_t] *cellindex):
+		uint64_t *blocked, MidFilter *midfilter, vector[size_t] *cellindex,
+		prepared=None):
 	"""Apply all possible lexical and unary rules on each lexical span.
 
 	:param unaryagenda: expects an empty agenda; only passed around to reuse
@@ -596,7 +613,7 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 		# if we are given gold tags, make sure we only allow matching
 		# tags - after removing addresses introduced by the DOP reduction
 		# and other state splits.
-		tagre = re.compile('%s($|[-@^/])' % re.escape(tag)) if tags else None
+		tagre = re.compile('%s($|[-@^/])' % re.escape(tag)) if tag else None
 		right = left + 1
 		if CFGChart_fused is DenseCFGChart:
 			cell = cellidx(left, right, lensent, nts)
@@ -608,10 +625,15 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 			cellindex[0][ccell] = lastidx
 		recognized = False
 		# for n in grammar.lexicalbyword.get(word, ()):
-		it = grammar.lexicalbyword.find(word.encode('utf8'))
-		if it != grammar.lexicalbyword.end():
-			for n in dereference(it).second:
-				lexrule = grammar.lexical[n]
+		# it = grammar.lexicalbyword.find(word.encode('utf8')) \
+		#      if not grammar.emission else grammar.lexical.begin()
+		# if it != grammar.lexicalbyword.end():
+		#   for n in dereference(it).second:
+		it = grammar.lexical.begin()
+		if True:
+			while it != grammar.lexical.end():
+				lexrule = dereference(it)
+				postincrement(it)
 				if (whitelist is not None and whitelist.mapping[lexrule.lhs]
 						and whitelist.cfg[ccell].count(
 							whitelist.mapping[lexrule.lhs]) == 0):
@@ -619,7 +641,9 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 					continue
 				lhs = lexrule.lhs
 				if tag is None or tagre.match(grammar.tolabel[lhs]):
-					chart.updateprob(cell + lhs, lexrule.prob, 0.0)
+					prob = grammar.emission._token_log_proba(lhs, word, prepared=prepared) \
+						if grammar.emission else lexrule.prob
+					chart.updateprob(cell + lhs, prob, 0.0)
 					chart.addedge(cell + lhs, right, NULL)
 					recognized = True
 					if midfilter is not NULL:
@@ -637,7 +661,7 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 					if midfilter is not NULL:
 						updatemidfilter(midfilter[0], left, right, lhs, nts)
 		if not recognized:
-			if tag is None and it == grammar.lexicalbyword.end():
+			if tag is None and it == grammar.lexical.end():
 				return False, ('no parse: no gold POS tag given '
 						'and word %r not in lexicon' % word)
 			elif tag is not None and tag not in grammar.toid:

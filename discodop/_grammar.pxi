@@ -69,12 +69,19 @@ cdef class Grammar:
 		self.currentmodel = 'default'
 		if isinstance(altweights, dict):
 			self.models = altweights
+			self.emission = altweights
+			self.altweightsfile = None
+		elif not isinstance(altweights, str):
+			self.models = None
+			self.emission = altweights
 			self.altweightsfile = None
 		elif altweights is not None:
 			self.models = None
+			self.emission = None
 			self.altweightsfile = altweights
 		else:
 			self.models = {}
+			self.emission = None
 			self.altweightsfile = None
 
 		rules = lexicon = None
@@ -129,6 +136,12 @@ cdef class Grammar:
 		if nonint.search(rules) is None:
 			self._normalize()
 		del rules, lexicon
+
+	def _is_mte(self, lhs):
+		return self.emission and self.emission._is_mte(lhs)
+
+	def _label(self, lhs):
+		return self.tolabel[lhs]
 
 	def _convertrules(self, bytes rules):
 		"""Count unary & binary rules; make a canonical list of all

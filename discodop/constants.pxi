@@ -16,4 +16,4 @@ DEF MAX_LOGPROB = 300.0
 
 # The maximum length of the path to the root node and any terminal node.
 # Prevents unary cycles from causing stack overflows in k-best extraction.
-DEF MAX_DEPTH = 200
+DEF MAX_DEPTH = 5000

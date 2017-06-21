@@ -18,7 +18,7 @@ from .bit cimport bit_popcount
 
 include "constants.pxi"
 
-ctypedef uint16_t Idx  # PCFG chart indices; max 16 bits.
+ctypedef uint32_t Idx  # PCFG chart indices; max 16 bits.
 
 cdef extern from "_containers.h":
 	ctypedef uint32_t ItemNo  # numeric ID for chart item
@@ -550,7 +550,7 @@ cdef class Grammar:
 	cpdef noderuleno(self, node)
 	cpdef getruleno(self, tuple r, tuple yf)
 	cdef yfstr(self, ProbRule rule)
-
+	cpdef object emission
 
 # chart improvements todo:
 # [ ] is it useful to have a recognition phase before making parse forest?

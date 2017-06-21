@@ -13,7 +13,7 @@ clean:
 	cd docs && make clean
 
 discodop:
-	python3 setup.py install --user
+	python3 setup.py install
 	cp build/lib.*/discodop/*.so discodop/
 
 docs:

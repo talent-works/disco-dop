@@ -1254,9 +1254,8 @@ class DrawTree(object):
 		return nodes, coords, edges
 
 	def svg(self, hscale=40, hmult=3, nodecolor='blue', leafcolor='red',
-			funccolor='green', funcsep=None):
+			funccolor='green', funcsep=None, fontsize=12):
 		""":returns: SVG representation of a discontinuous tree."""
-		fontsize = 12
 		vscale = 25
 		hstart = vstart = 20
 		width = max(col for _, col in self.coords.values())

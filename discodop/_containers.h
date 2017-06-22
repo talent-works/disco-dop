@@ -209,6 +209,7 @@ struct LexicalRule {
 struct Edge {  // 16 bytes
     ProbRule *rule;  // ruleno takes less space than pointer, but not convenient
     Position pos;
+    short left;
 };
 class SmallChartItem {  // 96 bits
 public:

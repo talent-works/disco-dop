@@ -53,7 +53,7 @@ cdef class CFGChart(Chart):
 
 @cython.final
 cdef class DenseCFGChart(CFGChart):
-	cdef void addedge(self, uint64_t item, Idx mid, ProbRule *rule)
+	cdef void addedge(self, uint64_t item, Idx start, Idx mid, ProbRule *rule)
 	cdef bint updateprob(self, uint64_t item, Prob prob, Prob beam)
 	cdef Label _label(self, uint64_t item)
 	cdef Prob _subtreeprob(self, uint64_t item)
@@ -63,7 +63,7 @@ cdef class DenseCFGChart(CFGChart):
 @cython.final
 cdef class SparseCFGChart(CFGChart):
 	cdef sparse_hash_map[uint64_t, ItemNo] itemindex
-	cdef void addedge(self, uint64_t item, Idx mid, ProbRule *rule)
+	cdef void addedge(self, uint64_t item, Idx start, Idx mid, ProbRule *rule)
 	cdef bint updateprob(self, uint64_t item, Prob prob, Prob beam)
 	cdef Label _label(self, uint64_t item)
 	cdef Prob _subtreeprob(self, uint64_t item)

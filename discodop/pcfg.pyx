@@ -80,10 +80,11 @@ cdef class DenseCFGChart(CFGChart):
 		return cellidx(0, self.lensent, self.lensent,
 				self.grammar.nonterminals) + self.start
 
-	cdef void addedge(self, uint64_t item, Idx mid, ProbRule *rule):
+	cdef void addedge(self, uint64_t item, Idx left, Idx mid, ProbRule *rule):
 		"""Add new edge to parse forest."""
 		cdef Edge edge
 		edge.rule = rule
+		edge.left = left
 		edge.pos.lvec = mid
 		self.parseforest[item].push_back(edge)
 
@@ -241,11 +242,12 @@ cdef class SparseCFGChart(CFGChart):
 	def root(self):
 		return self.itemindex[cellstruct(0, self.lensent) + self.start]
 
-	cdef void addedge(self, uint64_t item, Idx mid, ProbRule *rule):
+	cdef void addedge(self, uint64_t item, Idx left, Idx mid, ProbRule *rule):
 		"""Add new edge to parse forest."""
 		cdef ItemNo itemidx = self.itemindex[item]
 		cdef Edge edge
 		edge.rule = rule
+		edge.left = left
 		edge.pos.lvec = 0UL
 		edge.pos.mid = mid
 		self.parseforest[itemidx].push_back(edge)
@@ -465,7 +467,7 @@ cdef parse_grammarloop(sent, CFGChart_fused chart, tags,
 					prob = grammar.emission._span_log_proba(lhs, sent[left:right], prepared=prepared_span)
 					if isfinite(prob):
 						chart.updateprob(item, prob + rule.prob, beam)
-						chart.addedge(item, right, NULL)
+						chart.addedge(item, left, right, NULL)
 
 				while rule.lhs == lhs:
 					narrowr = midfilter.minright[left * nts + rule.rhs1]
@@ -495,7 +497,7 @@ cdef parse_grammarloop(sent, CFGChart_fused chart, tags,
 						if isfinite(prob):
 							if chart.updateprob(item, prob + rule.prob,
 									beam_beta if span <= beam_delta else 0.0):
-								chart.addedge(item, mid, rule)
+								chart.addedge(item, left, mid, rule)
 							else:
 								blocked += 1
 					n += 1
@@ -574,7 +576,7 @@ cdef parse_leftchildloop(sent, SparseCFGChart chart, tags,
 									beam_beta if span <= beam_delta else 0.0):
 								blocked += 1
 							else:
-								chart.addedge(item, mid, rule)
+								chart.addedge(item, left, mid, rule)
 						n += 1
 						rule = &(grammar.lbinary[rhs1][n])
 					leftitemidx += 1
@@ -644,7 +646,7 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 					prob = grammar.emission._token_log_proba(lhs, word, prepared=prepared) \
 						if grammar.emission else lexrule.prob
 					chart.updateprob(cell + lhs, prob, 0.0)
-					chart.addedge(cell + lhs, right, NULL)
+					chart.addedge(cell + lhs, left, right, NULL)
 					recognized = True
 					if midfilter is not NULL:
 						updatemidfilter(midfilter[0], left, right, lhs, nts)
@@ -656,7 +658,7 @@ cdef populatepos(CFGChart_fused chart, sent, tags,
 				lhs = x.first
 				if tagre.match(grammar.tolabel[lhs]):
 					chart.updateprob(cell + lhs, 0.0, 0.0)
-					chart.addedge(cell + lhs, right, NULL)
+					chart.addedge(cell + lhs, left, right, NULL)
 					recognized = True
 					if midfilter is not NULL:
 						updatemidfilter(midfilter[0], left, right, lhs, nts)
@@ -728,7 +730,7 @@ cdef inline void applyunaryrules(
 					unaryagenda.setifbetter(lhs, rule.prob + prob)
 				else:
 					blocked += 1
-			chart.addedge(item, right, rule)
+			chart.addedge(item, left, right, rule)
 			if midfilter is not NULL:
 				updatemidfilter(midfilter[0], left, right, lhs, nts)
 

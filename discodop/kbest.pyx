@@ -188,11 +188,12 @@ cdef inline _getderiv(string &result, ItemNo v, RankedEdge& ej, Chart chart):
 	result.append(b'(')
 	result.append(chart.grammar.tolabel.ob[label])
 	if ej.edge.rule is NULL:  # lexical rule, left child is terminal
-		# C++ way to convert int to string requires streams, C++11, or boost
-		retval = sprintf(buf, ' %d)', chart.lexidx(ej.edge))
-		if retval <= 0:
-			raise ValueError('sprintf error; return value %d' % retval)
-		result.append(buf)
+		for ix in range(ej.edge.left, ej.edge.pos.mid):
+			if ix > ej.edge.left:
+				result.append(b" ")
+			retval = sprintf(buf, '%d', ix)
+			result.append(buf)
+		result.append(b")")
 	else:
 		result.append(b' ')
 		item = chart.left(ej)

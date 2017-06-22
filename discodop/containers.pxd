@@ -188,6 +188,7 @@ cdef extern from "_containers.h" nogil:
 	cdef cppclass Edge:
 		ProbRule *rule
 		Position pos
+		short left
 	cdef cppclass SmallChartItem:
 		Label label
 		uint64_t vec
